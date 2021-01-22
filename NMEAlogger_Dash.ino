@@ -1,6 +1,7 @@
 
 // Projekt NMEA Logger
 // Lino Liebegott
+// Tobias Wehmeyer
 
 // https://github.com/rfetick/MPU6050_light
 #include "Wire.h"
