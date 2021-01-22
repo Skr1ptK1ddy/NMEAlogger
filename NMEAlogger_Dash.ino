@@ -1,7 +1,12 @@
-#include <SD.h>
+
 // Projekt NMEA Logger
 // Lino Liebegott
 
+// https://github.com/rfetick/MPU6050_light
+#include "Wire.h"
+#include <MPU6050_light.h>
+
+#include <SD.h>
 #include <Arduino.h>
   #include <WiFi.h>
   #include <AsyncTCP.h>
@@ -20,6 +25,10 @@
 uint8_t temprature_sens_read();
 
 //=====================================
+
+
+MPU6050 mpu(Wire);
+long timer = 0;
 
 AsyncWebServer server(80); /* Start Webserver */
 ESPDash dashboard(&server);/* Attach ESP-DASH to AsyncWebServer */
@@ -58,7 +67,7 @@ unsigned long ulUpLastTime =0;
 #define SAVEPERIOD 2000 // ms
 #define UPDATEPERIOD 1000//ms
 #define bufferLen 14
-const int chipSelect = 4;
+const int chipSelect = 5;
 const int nmeaLen = 15;
 unsigned long lastTime = 0;
 int inByte, start=0;
@@ -78,22 +87,28 @@ void setup() {
   WiFi.mode(WIFI_AP);
   WiFi.softAP(ssid, password);
   WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
-  
+  Serial.begin(4800); // 4800 Baud Dateneingang und Konsole
   /* Start AsyncWebServer */
   server.begin();
-
-
-
-
+  Serial.println(nmea);
+  /* Init MPU6050 */
+  Wire.begin();
+  byte status = mpu.begin();
+  Serial.print(F("MPU6050 status: "));
+  Serial.println(status);
+  Serial.println(F("Calculating offsets, do not move MPU6050"));
+  delay(1000);
+  mpu.calcOffsets(true,true); // gyro and accelero
+  Serial.println("Done!\n");
   
-  Serial.begin(4800); // 4800 Baud Dateneingang und Konsole
+  
   Serial.print("IP Address: ");
   Serial.println(WiFi.softAPIP());
   Serial.print("SSID: ");
-  Serial.print(ssid);
-  Serial.print(" Password: ");
+  Serial.println(ssid);
+  Serial.print("Password: ");
   Serial.println(password);
-  Serial.println(nmea);
+  
   Serial.println("Date,Time,TimeZone,LAT,LOG,DPT,SOG,COG,HDG,SOW,TWS,TWA,AWS,AWA");
  //pinMode(LED_BUILTIN, OUTPUT); // digitalWrite(LED_BUILTIN, HIGH);  
   pinMode(10, OUTPUT);// pin I2C
@@ -109,6 +124,10 @@ void setup() {
 void loop() {
   unsigned long now = millis();
   temp = (temprature_sens_read() - 32) / 1.8; // CPU Temp
+  mpu.update();
+
+
+  
   do {
    if (Serial.available()) { // Sind Daten im Eingangspuffer
    
@@ -164,6 +183,28 @@ if (now - ulUpLastTime >= UPDATEPERIOD)
 
   /* Send Updates to Dashboard (realtime) */
   dashboard.sendUpdates();
+
+
+/* Gyo and Accelero   */
+
+    Serial.print(millis() - timer); // Time from last report
+    Serial.print(F("TEMPERATURE: "));Serial.println(mpu.getTemp()); // Temp
+    
+    /* ACCELERO */
+    Serial.print(F("ACCELERO  X: "));Serial.print(mpu.getAccX());
+    Serial.print("\tY: ");Serial.print(mpu.getAccY());
+    Serial.print("\tZ: ");Serial.println(mpu.getAccZ());
+    /* Gyro */
+    Serial.print(F("GYRO      X: "));Serial.print(mpu.getGyroX());
+    Serial.print("\tY: ");Serial.print(mpu.getGyroY());
+    Serial.print("\tZ: ");Serial.println(mpu.getGyroZ());
+    
+    timer = millis();
+
+
+    
+
+  
   }
 
 
@@ -292,25 +333,38 @@ if (nmea.substring(3,6) == "VWR") { // $--VWR - Relative Wind Speed and Angle
     nmeaBuffer[12]= nmeaSplit[4];//AWS
      return;}  
 }
+int i =0;
 void schreibeSD() {
+  
 // Einen Datensatz auf die SD Karte scheiben
 
-  File datei = SD.open("Log.csv", FILE_WRITE);
+  File datei = SD.open("/Log.txt");//, FILE_WRITE);
   if (datei) {
     datei.println(nmea);
+    datei.println(i);
+    Serial.println(i);
     datei.close();
-    
+    i+=1;
   }  
   else {
     Serial.println("Fehler: Datei konnte nicht geöffnet werden.");
    
-  }}
+  }
+  
+ 
+ 
+  
+  }
   
 
 
 
 
 
+
+
+     
+ 
 
 
      
